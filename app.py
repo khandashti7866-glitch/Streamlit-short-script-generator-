@@ -1,39 +1,21 @@
 # app.py
 """
-AI Short Script Generator — Luxurious Transparent UI
-- No API key needed
-- Uses fallback template generator for guaranteed English output
-- Optional: tiny GPT-2 model (local) if installed
-- Luxurious glassmorphic design
-- Options: genre, tone, length, hook, characters, platform
-- Export/download scripts
+AI Short Script Generator — GPT-4 powered
+- Requires OpenAI API key
+- Luxurious transparent UI
+- Options: genre, tone, platform, length, characters, hook, CTA
+- Fallback deterministic generator included
 """
 
 import streamlit as st
 import textwrap
 import datetime
-
-# -------------------------------
-# Model settings (optional)
-# -------------------------------
-USE_MODEL = False  # <-- force fallback generator for readable English
-MODEL_NAME = "sshleifer/tiny-gpt2"
-
-try:
-    if USE_MODEL:
-        from transformers import pipeline, set_seed
-        import torch
-        GENERATOR = pipeline("text-generation", model=MODEL_NAME, device=-1 if not torch.cuda.is_available() else 0)
-        set_seed(42)
-    else:
-        GENERATOR = None
-except Exception:
-    GENERATOR = None
+import openai
 
 # -------------------------------
 # Page config
 # -------------------------------
-st.set_page_config(page_title="Lux AI Scripter", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="GPT-4 Lux Script Generator", layout="centered", initial_sidebar_state="expanded")
 
 # Luxurious CSS
 st.markdown("""
@@ -54,10 +36,11 @@ st.markdown("""
 # -------------------------------
 with st.sidebar:
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
-    st.markdown("<div class='huge'>Lux AI Scripter</div>", unsafe_allow_html=True)
-    st.markdown("<div class='muted'>Short scripts, reels, shorts & sketches — always readable English</div>", unsafe_allow_html=True)
+    st.markdown("<div class='huge'>GPT-4 Lux Script Generator</div>", unsafe_allow_html=True)
+    st.markdown("<div class='muted'>Generate short scripts with GPT-4</div>", unsafe_allow_html=True)
     st.write("")
     
+    api_key = st.text_input("OpenAI API Key", type="password")
     genre = st.selectbox("Genre", ["Motivational", "Comedy", "Drama", "Romance", "Horror", "Educational", "Religious/Inspirational", "Product Promo", "Explainer"], index=0)
     tone = st.selectbox("Tone", ["Warm", "Funny", "Sarcastic", "Serious", "Emotional", "Businesslike", "Playful"], index=0)
     platform = st.selectbox("Target Platform", ["YouTube Short", "TikTok", "Instagram Reel", "Facebook", "Podcast Intro"], index=0)
@@ -73,7 +56,7 @@ with st.sidebar:
 # Main UI
 # -------------------------------
 st.markdown("<div class='glass' style='padding:22px'>", unsafe_allow_html=True)
-st.markdown("<div style='display:flex; justify-content:space-between; align-items:center;'> <div class='huge'>AI Short Script Generator</div> <div class='muted'>Luxurious • Transparent • Always English</div></div>", unsafe_allow_html=True)
+st.markdown("<div style='display:flex; justify-content:space-between; align-items:center;'> <div class='huge'>AI Short Script Generator</div> <div class='muted'>GPT-4 powered • Luxurious • Transparent</div></div>", unsafe_allow_html=True)
 
 with st.form(key='script_form'):
     title = st.text_input("Script title / topic", value="A quick motivational boost for entrepreneurs")
@@ -81,10 +64,10 @@ with st.form(key='script_form'):
     submitted = st.form_submit_button("Generate Script")
 
 # -------------------------------
-# Fallback deterministic generator (always readable English)
+# Fallback deterministic generator
 # -------------------------------
 def fallback_generate(title, genre, tone, platform, length, hook_strength, chars, notes, cta):
-    hook_map = {'Mild': 'What if I told you...?','Standard': 'Listen — this changed my whole year.','All-in': 'Stop scrolling. Your life could change in 30 seconds.'}
+    hook_map = {'Mild': 'What if I told you...?','Standard': 'Listen — this changed my whole year.','All-in': 'Pay attention — this could change your day.'}
     hook = hook_map.get(hook_strength, 'Here’s something to think about:')
     
     tone_words = {'Warm': ['warmly'], 'Funny': ['jokingly'], 'Sarcastic': ['dryly'], 'Serious': ['firmly'], 'Emotional': ['softly'], 'Businesslike': ['strategically'], 'Playful': ['playfully']}
@@ -96,34 +79,52 @@ def fallback_generate(title, genre, tone, platform, length, hook_strength, chars
         for i, n in enumerate(names, start=1):
             char_section += f"{n}: (short descriptor)\n"
     
-    approx_lines = max(3, int(length / 8))
-    lines = []
-    lines.append(hook)
+    lines = [hook]
     lines.append(f"Topic: {title} — {genre} | Tone: {tone} | Platform: {platform}")
     if notes:
         lines.append(f"Notes: {notes}")
     if char_section:
         lines.append("Characters:")
         lines.append(char_section)
+    
+    approx_lines = max(3, int(length / 8))
     for i in range(approx_lines):
-        lines.append(f"{i+1}. " + textwrap.shorten(f"This line carries the {twords[0]} punch and drives the idea home.", width=120))
+        lines.append(f"{i+1}. This is a meaningful short script line written {twords[0]}.")
+    
     if cta:
         lines.append("END: " + ("Subscribe for more" if platform != 'Podcast Intro' else 'Follow our podcast'))
     return "\n\n".join(lines)
 
 # -------------------------------
-# Model-backed generator (optional)
+# GPT-4 script generation
 # -------------------------------
-def model_generate(prompt, max_tokens=150):
-    if not GENERATOR:
+def gpt4_generate(api_key, title, genre, tone, platform, length, hook_strength, characters, notes, cta):
+    if not api_key:
         return None
+    openai.api_key = api_key
+    prompt = f"""
+    Generate a short script for a {platform}.
+    Title: {title}
+    Genre: {genre}
+    Tone: {tone}
+    Length: approx {length} seconds
+    Hook: {hook_strength}
+    Characters: {characters}
+    Extra notes: {notes}
+    Include CTA: {cta}
+    
+    Write 5-10 lines that are natural, varied, punchy, and suitable for a short video script.
+    """
     try:
-        out = GENERATOR(prompt, max_length=max_tokens, do_sample=True, top_p=0.9, top_k=50, num_return_sequences=1)
-        text = out[0]['generated_text']
-        if text.startswith(prompt):
-            text = text[len(prompt):].strip()
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+            max_tokens=400
+        )
+        text = response['choices'][0]['message']['content'].strip()
         return text
-    except Exception:
+    except Exception as e:
         return None
 
 # -------------------------------
@@ -131,25 +132,19 @@ def model_generate(prompt, max_tokens=150):
 # -------------------------------
 if submitted:
     st.markdown("<hr/>", unsafe_allow_html=True)
-    st.markdown("<div class='muted'>Generating — crafting a luxurious short script in readable English...</div>", unsafe_allow_html=True)
-    timestamp = datetime.datetime.utcnow().isoformat()
+    st.markdown("<div class='muted'>Generating script with GPT-4...</div>", unsafe_allow_html=True)
     
-    prompt = f"Generate a short {genre} script titled '{title}' for {platform}. Tone: {tone}. Length approx {length} seconds. Hook: {hook_strength}. Extra notes: {prompts_extra}. Include CTA: {include_call_to_action}. Characters: {character_names}\n\nScript:"
+    result_text = gpt4_generate(api_key, title, genre, tone, platform, length, hook_strength, character_names, prompts_extra, include_call_to_action)
     
-    result_text = None
-    if USE_MODEL and GENERATOR:
-        result_text = model_generate(prompt, max_tokens=300)
-    
-    # fallback ensures English output
-    if not result_text or len(result_text.split()) < 5:
+    if not result_text:
+        st.warning("GPT-4 generation failed or API key missing. Using fallback generator.")
         result_text = fallback_generate(title, genre, tone, platform, length, hook_strength, character_names, prompts_extra, include_call_to_action)
     
     st.subheader("Generated Script")
     st.text_area("Preview", value=result_text, height=360)
-    
     st.download_button(label="Download .txt", data=result_text, file_name=f"script-{title[:30].strip().replace(' ','-')}.txt", mime='text/plain')
     
-    st.markdown("""<div class='footerSmall'>Tip: You can optionally install tiny GPT-2 for local model generation, but fallback ensures fully readable English.</div>""", unsafe_allow_html=True)
+    st.markdown("""<div class='footerSmall'>Tip: Enter a valid OpenAI API key for GPT-4 generation. Fallback ensures readable English scripts if API is missing or fails.</div>""", unsafe_allow_html=True)
 else:
     st.markdown("<div class='muted'>Enter a title and options, then press Generate Script.</div>", unsafe_allow_html=True)
 
